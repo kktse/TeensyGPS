@@ -28,6 +28,7 @@ StaticJsonBuffer<700> jsonBuffer3;
 StaticJsonBuffer<700> jsonBuffer4;
 StaticJsonBuffer<700> jsonBuffer5;
 StaticJsonBuffer<700> jsonBuffer6;
+StaticJsonBuffer<700> jsonBuffer7;
 const char* classConfig[number_JSON_object];
 
 char LineOut_name[3][10] = {"Disabled","High","Low"};
@@ -94,7 +95,14 @@ String ATT_name[24] = {"device",
                        "quat4",
                        "temp",
                        "pressure"};
-                       
+
+String ATTCAL_name[6] = {"acc_x",
+                         "acc_y",
+                         "acc_z",
+                         "gyro_x",
+                         "gyro_y",
+                         "gyro_z"};
+                         
 String CAN_name[NUM_CAN_FRAME] =  
                       {"can00",
                        "can01",
@@ -230,6 +238,7 @@ void parseJSON() {
       JsonObject& config4 = jsonBuffer4.parseObject(configData[3]);
       JsonObject& config5 = jsonBuffer5.parseObject(configData[4]);
       JsonObject& config6 = jsonBuffer6.parseObject(configData[5]);
+      JsonObject& config7 = jsonBuffer7.parseObject(configData[6]);
       if (!(config1.success() && config2.success() && config3.success() && config4.success())) {
           Serial.println("parseObject() failed");
           parse_success = 0;
@@ -256,7 +265,6 @@ void parseJSON() {
       };
       
       classConfig[4] = config5["class"];
-      
       for (i = 0; i < 3; i++){
           FLS[i].en = config5 [FLS_name[i]][0];
           FLS[i].lat_A = config5 [FLS_name[i]][1];
@@ -272,7 +280,9 @@ void parseJSON() {
               FLS[i].lineOut = 2;   
           FLS[i].maxSpeed = config5 [FLS_name[i]][6];
           FLS[i].minSpeed = config5 [FLS_name[i]][7];
-      };    
+      };
+
+      classConfig[5] = config6["class"];
       for (i = 0; i < 1; i++){
           PIT[i].pit_length = config6 [PIT_name[0]];
           PIT[i].pit_max_spd = config6 [PIT_name[1]];
@@ -281,6 +291,12 @@ void parseJSON() {
           PIT[i].ir_beacon = config6 [PIT_name[4]];
           PIT[i].gps_beacon = config6 [PIT_name[5]];
       };
+
+      classConfig[6] = config7["class"];
+      for (i = 0; i < sizeof(ATTCAL)/4; i++){
+          ATTCAL[i] = config7 [ATTCAL_name[i]];
+      };
+      
       Serial.println("Update EEPROM");
       update_EEPROM();
    }
@@ -367,6 +383,12 @@ void printJSON(){
         Serial.print(PIT[i].gps_beacon);
         Serial.println(" ");
     };
+    Serial.print("ATTCAL");
+    Serial.print(" ");
+    for (unsigned int i = 0; i < sizeof(ATTCAL)/4; i++){
+        Serial.print(ATTCAL[i]);
+        Serial.print(" ");
+    };
     Serial.println();
 }
 
@@ -439,14 +461,14 @@ void LogSetup() {
 /// 2. Open file and save header from TPV and ATT data \n
 void create_newlog(){
     String header;
-    while (SD.exists(namefile)) {      
+    while (SD.exists(namefile)) {
         Serial.print(namefile);
-        Serial.println(" file present."); 
+        Serial.println(" file present.");
         incFileNum();
     }
-    Serial.print("Logging Data to "); 
+    Serial.print("Logging Data to ");
     Serial.println(namefile);
-    dataFile = SD.open(namefile, FILE_WRITE);           
+    dataFile = SD.open(namefile, FILE_WRITE);
     delay(100);
     if (dataFile){
         for (unsigned int i = 0; i < sizeof(TPV); i++){
@@ -483,7 +505,7 @@ void dataFloat(float value, int mode){
 /// 
 void dataFloatATT(float value, int mode){
     char outstr[21];
-    dtostrf(value, 20, 12, outstr);
+    dtostrf(value, 20, 6, outstr);
     char* str_without_space = del_space(outstr);
     if (gps.venus838data_raw.fixmode >= mode)
         datastring.print (str_without_space);
@@ -874,6 +896,8 @@ String null_add(int value){
 }
 
 String GetDeltaTime(float time){
+  // Not useful in post-processing to have time in pretty format
+  /*
   unsigned int time_ms, time_sec, time_min, time_hour;
   time_ms = (int(time) % 1000)/10;
   time_sec = time / 1000;
@@ -883,6 +907,10 @@ String GetDeltaTime(float time){
   time_min = time_min % 60;
   Delta_Time = null_add(time_hour) + String(time_hour) + ':' + null_add(time_min) + String(time_min) + ':' +
   null_add(time_sec) + String(time_sec) + ':' + null_add(time_ms) + String(time_ms);
+  */
+
+  // Alternative implementation to return time in seconds
+  Delta_Time = String(time / 1000);
   return Delta_Time;
 }
 

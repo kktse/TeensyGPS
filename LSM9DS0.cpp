@@ -16,7 +16,7 @@ float mag_offsets[3]            = { 0.078835, -0.097777, 0.049886 };
 // Soft iron error compensation matrix
 float mag_softiron_matrix[3][3] = { { 1.147015, -0.017120, 0.009420 },
                                     { -0.017120, 1.147780, -0.011485},
-                                    { 0.009420, -0.011485, 1.199737} }; 
+                                    { 0.009420, -0.011485, 1.199737 } };
 
 float mag_field_strength        = 0.48;
 
@@ -66,6 +66,12 @@ static const int16_t dec_tbl[37][73] = \
 #define gyroMeasDrift 3.14159265358979 * (0.2f / 180.0f) // gyroscope measurement error in rad/s/s (shown as 0.2f deg/s/s)
 #define beta 1 //sqrt(3.0f / 4.0f) * gyroMeasError // compute beta
 #define zeta sqrt(3.0f / 4.0f) * gyroMeasDrift // compute zeta
+#define XACCELCALIBRATION 0
+#define YACCELCALIBRATION 1
+#define ZACCELCALIBRATION 2
+#define XGYROCALIBRATION 3
+#define YGYROCALIBRATION 4
+#define ZGYROCALIBRATION 5
 // global constants for 9 DoF fusion and AHRS (Attitude and Heading Reference System)
 float a_x, a_y, a_z; // accelerometer measurements
 float w_x, w_y, w_z; // gyroscope measurements in rad/s
@@ -75,9 +81,19 @@ float b_x = 1, b_z = 0; // reference direction of flux in earth frame
 float w_bx = 0, w_by = 0, w_bz = 0; // estimate gyroscope biases error
 uint32_t lastUpdate = 0, sumCount = 0;  // used to calculate integration interval
 uint32_t Now = 0;                       // used to calculate integration interval
-float abias[3] = {0, 0, 0}, gbias[3] = {-0.7, -6, -4}, gzero[3] = {1, 1, 1};
+float abias[3] = {0, 0, 0}, gbias[3] = {0, 0, 0}, gzero[3] = {1, 1, 1};
+
 LSM9DS0 dof(MODE_I2C, LSM9DS0_G, LSM9DS0_XM);
 NXPSensorFusion sensorFilter;
+MedianFilter xAccelFilter(5, 0);
+MedianFilter yAccelFilter(5, 0);
+MedianFilter zAccelFilter(5, 0);
+MedianFilter xGyroFilter(3, 0);
+MedianFilter yGyroFilter(3, 0);
+MedianFilter zGyroFilter(3, 0);
+MedianFilter xMagFilter(5, 0);
+MedianFilter yMagFilter(5, 0);
+MedianFilter zMagFilter(5, 0);
 
 /// \fn get_declination
 /// \brief Return declination from gps coordinates \n
@@ -115,18 +131,18 @@ void sensor_9dof_configure()
   pinMode(INT1XM, INPUT);
   pinMode(INT2XM, INPUT);
   pinMode(DRDYG,  INPUT);
+  
   dof.begin();
   dof.setAccelScale(dof.A_SCALE_4G);
-  dof.setGyroScale(dof.G_SCALE_245DPS);
+  dof.setGyroScale(dof.G_SCALE_500DPS);
   dof.setMagScale(dof.M_SCALE_2GS);
+  
   // Set output data rates                   
   dof.setAccelODR(dof.A_ODR_200); // Set accelerometer update rate at 100 Hz
   dof.setAccelABW(dof.A_ABW_50); // Choose lowest filter setting for low noise                            380 Hz (bandwidth 20, 25, 50, 100 Hz), or 760 Hz (bandwidth 30, 35, 50, 100 Hz)
   dof.setGyroODR(dof.G_ODR_190_BW_125);  // Set gyro update rate to 190 Hz with the smallest bandwidth for low noise
   dof.setMagODR(dof.M_ODR_125); // Set magnetometer to update every 80 ms
-  dof.calLSM9DS0(gbias, abias);
-  // sensor filter start
-  sensorFilter.begin(50);
+
 }
 
 /// \fn
@@ -275,23 +291,35 @@ void filterUpdate(float w_x, float w_y, float w_z, float a_x, float a_y, float a
 void sensor_9dof_read()
 {
   uint16_t static now_time, prev_time;
-  float static prev_yaw;
+  float static prev_yaw, ax_prev1, ax_prev2, ay_prev1, ay_prev2, az_prev1, az_prev2;
   //Serial.println(millis());
   float declination;
   if(digitalRead(DRDYG)){
     dof.readGyro();              // Read raw gyro data
-    gx = dof.calcGyro(dof.gx) - gbias[0];   // Convert to degrees per seconds
-    gy = dof.calcGyro(dof.gy) - gbias[1];
-    gz = dof.calcGyro(dof.gz) - gbias[2];
+    xGyroFilter.in(dof.gx);
+    yGyroFilter.in(dof.gy);
+    zGyroFilter.in(dof.gz);
+    dof.gx = xGyroFilter.out();
+    dof.gy = yGyroFilter.out();
+    dof.gz = zGyroFilter.out();
+    gx = dof.calcGyro(dof.gx) - ATTCAL[XGYROCALIBRATION];   // Convert to degrees per seconds
+    gy = dof.calcGyro(dof.gy) - ATTCAL[YGYROCALIBRATION];
+    gz = dof.calcGyro(dof.gz) - ATTCAL[ZGYROCALIBRATION];
   }
   if(digitalRead(INT1XM)){
     dof.readAccel();              // Read raw accelerometer data
+    xAccelFilter.in(dof.ax);
+    yAccelFilter.in(dof.ay);
+    zAccelFilter.in(dof.az);
+    dof.ax = xAccelFilter.out();
+    dof.ay = yAccelFilter.out();
+    dof.az = zAccelFilter.out();
   #if defined ACCEL_16G
     scale_accel_16g();
   #endif
-    ax = dof.calcAccel(dof.ax)- abias[0];   // Convert to g's
-    ay = dof.calcAccel(dof.ay)- abias[1];
-    az = dof.calcAccel(dof.az)- abias[2];   
+    ax = dof.calcAccel(dof.ax) - ATTCAL[XACCELCALIBRATION];   // Convert to g's
+    ay = dof.calcAccel(dof.ay) - ATTCAL[YACCELCALIBRATION];
+    az = dof.calcAccel(dof.az) - ATTCAL[ZACCELCALIBRATION];   
   }
   if(digitalRead(INT2XM)){
     dof.readMag();                // Read raw magnetometer data
@@ -321,7 +349,7 @@ void sensor_9dof_read()
       gy = 0;
   if (abs(gz) < gzero[2])
       gz = 0;
-  filterUpdate(gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, ax, ay, az, mx,  my, -mz);
+  filterUpdate(gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, ax, ay, az, mx,  my, -mz);  
   yaw   = -atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   
   pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
   roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);

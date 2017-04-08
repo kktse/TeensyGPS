@@ -3,6 +3,8 @@
 #include <SFE_LSM9DS0.h>
 #include <SPI.h> // Included for SFE_LSM9DS0 library
 #include <Wire.h>
+#include <MedianFilter.h>
+#include "LogLib.h"
 #include "BMsg838.h"
 #include "NXPMotionSense.h"
 
@@ -15,6 +17,7 @@ extern int INT2XM;
 extern int DRDYG;
 extern float ax, ay, az, gx, gy, gz, mx, my, mz, x, y, z; 
 extern float heading, roll, pitch, yaw, temperature, inclination, yaw_rate, prev_yaw; 
+extern float ax_prev1, ax_prev2, ay_prev1, ay_prev2, az_prev1, az_prev2;
 extern float bmp280_pressure;
 extern float q[4];
 

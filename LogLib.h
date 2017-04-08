@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 #define ACC_SCALE 1000
-#define YAW_SCALE 100
+#define YAW_SCALE 1
 #define NUM_CAN_FRAME  9
 
 #define TIMECONV_JULIAN_DATE_START_OF_GPS_TIME (2444244.5)  // [days]
@@ -32,7 +32,7 @@
 #define memBase5   1536
 #define memBase6   1792
 #define EEPROMSize 2048
-#define number_JSON_object 6
+#define number_JSON_object 7
 
 extern int chipSelect;
 extern int mosi;
@@ -51,6 +51,7 @@ extern const char* classConfig[number_JSON_object];
 extern float CNF [15];
 extern boolean TPV [19];
 extern boolean ATT [24];
+extern float ATT_CAL [6];
 extern char res[21];
 
 extern void LogSetup();
@@ -148,6 +149,7 @@ extern float ax, ay, az, gx, gy, gz, mx, my, mz;
 extern float heading, roll, pitch, yaw, temperature, inclination, yaw_rate;
 extern float bmp280_pressure;
 extern float q[4];
+extern float ATTCAL[6];
 extern struct DOF_DATA att;
 extern struct CAN_DATA CAN[NUM_CAN_FRAME];
 extern struct FLS_DATA FLS[3];

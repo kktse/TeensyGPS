@@ -84,6 +84,7 @@ String UTC_Time;
 String Delta_Time;
 
 /*structures for config data*/
+float ATTCAL[6];
 struct DOF_DATA att;
 struct CAN_DATA CAN[NUM_CAN_FRAME];
 struct FLS_DATA FLS[3];
